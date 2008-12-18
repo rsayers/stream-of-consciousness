@@ -1,0 +1,504 @@
+<%
+  class RedBlosxom
+    
+    def initialize
+      require 'cgi'
+      require 'ftools'
+
+      @settings = {
+        
+        :blog_title => "Robsayers.Com",
+        
+        # What's this blog's description (for outgoing RSS feed)?
+        :blog_description => "Yet another Blosxom weblog.",
+        
+        # What's this blog's primary language (for outgoing RSS feed)?
+        :blog_language => "en",
+        
+        # Where are this blog's entries kept?
+        :datadir => "/home/rsayers/public_html/blog/data",
+        
+        
+        #What directory will static pages be served from?
+        
+        :pagedir => "/home/rsayers/public_html/pagedata",
+
+        :pagevar => "pages",
+        
+        # What's my preferred base URL for this blog (leave blank for automatic)?
+        :url => "http://www.robsayers.com",
+        
+        # Should I stick only to the datadir for items or travel down the
+        # directory hierarchy looking for items?  If so, to what depth?
+        # 0 => infinite depth (aka grab everything), 1 => datadir only, n => n levels down
+        :depth => 0,
+        
+        # How many entries should I show on the home page?
+        :num_entries => 10,
+        
+        # What file extension signifies a blosxom entry?
+        :file_extension => "txt",
+        
+        # What is the default flavour?
+        :default_flavour => "html",
+        
+        # Should I show entries from the future (i.e. dated after now)?
+        :show_future_entries => 0,
+        
+        # --- Plugins (Optional) -----
+        
+        # Where are my plugins kept?
+        :plugin_dir => "",
+        
+        # Where should my modules keep their state information?
+        :plugin_state_dir => ":plugin_dir/state",
+        
+        # --- Static Rendering -----
+        
+        # Where are this blog's static files to be created?
+        :static_dir => "/Library/WebServer/Documents/blog",
+        
+        # What's my administrative password (you must set this for static rendering)?
+        :static_password => "",
+        
+        # What flavours should I generate statically?
+        @static_flavours => ['html', 'rss'],
+        
+        # Should I statically generate individual entries?
+        # 0 => no, 1 => yes
+        :static_entries => 0
+      }
+      
+      @pageno=1
+      @entries=[]
+      @categories=[]
+      get_categories
+      @numpages=1
+    end
+        
+    def dispatch
+      cgi=CGI.new
+      @mode=''
+      @path_info=[]
+      @path_info=cgi.path_info.to_s.split('/')
+      @path_info.shift
+      @path_info << '/' if @path_info.last.nil? 
+      if @path_info.last.match(/\d+/)
+        @pageno=@path_info.pop.to_i
+      end
+      
+      @path_info << '/' if @path_info.last.nil?
+     
+    
+      if @path_info.last.match('.*\.xml$') then
+        @mode='xml'
+        cgi.header('Content-type: text/xml')
+        @path_info.pop
+        get_entries @path_info.join('/')
+        tpl_rss
+      elsif @path_info[0]=='pages'
+        @mode='page'
+        get_page
+        tpl_header
+        tpl_page
+        tpl_footer
+        
+      elsif @path_info.last.match('.*\.html$') then
+        @mode='view'
+        get_entry
+        tpl_header
+        tpl_list_entries
+        tpl_footer
+      else
+        @mode='list'
+        get_entries @path_info.join('/') 
+        tpl_header
+        tpl_list_entries
+        tpl_footer
+      end
+    end
+    
+    def get_entry
+      filename=@path_info.join('/')
+      filename.gsub!('.html','.txt')
+
+ 
+      @entries << load_entry(filename)
+    end
+ 
+   def get_page
+      filename=@settings[:pagedir]+ '/' + @path_info.last
+      filename.gsub!('.html','.txt')
+      @entries << load_entry(filename)
+    end
+
+
+    
+    def get_categories
+      @categories=[]
+      @categories << '/'
+      Dir.chdir(@settings[:datadir])
+      list=Dir.glob(File.join("**","*"))
+      list.each do |e|
+        @categories << '/'+e if FileTest.directory?(@settings[:datadir] + '/' + e)
+      end
+      @categories.sort! 
+    end  
+
+    def load_entry(filename)
+      
+        File.open(filename) do |f|
+          title=f.readline
+          body=f.read.gsub("\r","").gsub("\n","<br>")
+          date=f.mtime
+          category="page"
+          category=get_cat_from_file(filename) if @mode != "page" 
+         tmp,filename=File.split(filename)
+          Entry.new(title,body,date,category,filename)
+        end
+      
+    end
+
+    def get_cat_from_file(filename)
+      fullpath=File.expand_path(filename)
+      tmp,category=fullpath.split(@settings[:datadir])
+      category,file=File.split(category)
+      category
+    end
+
+
+    def get_entries(category='/')
+      begin
+        Dir.chdir(@settings[:datadir] + '/' + category )
+      rescue
+        
+      end
+      list=Dir.glob(File.join("**","*.#{@settings[:file_extension]}"))
+      list.each do |post|
+          @entries << load_entry(post)
+      end
+      @entries.sort! { |x,y| y.date <=> x.date }
+      start = (@pageno.to_i * @settings[:num_entries].to_i) - @settings[:num_entries].to_i
+      start = 0 if @pageno == 1
+      @numpages=@entries.length /  @settings[:num_entries].to_i 
+      @entries=@entries[start,@settings[:num_entries].to_i]
+    end
+    
+    def tpl_header
+      %>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+        <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <title><%=@settings[:blog_title]%> </title>
+        <link rel="alternate" type="application/rss+xml" title="RSS" href="<%=@settings[:url]%>/rss.xml"/>
+        <meta name="viewport" content="width=800"/> <!-- iPhone -->
+<% css %>
+ </head>
+    <body>
+        <h1>
+            <a href="/"><%=@settings[:blog_title]%></a>
+        </h1>
+        <div id="content">
+            <div id="description">
+                <div>
+                <% sidebar %>
+
+<%
+end
+
+   def sidebar
+     %>
+       <p>Categories</p>
+<ul>
+<% @categories.each do |c| %>
+<li><a href="<%=@settings[:url]%><%=c%>"><%=c%></a></li>
+<% end %>
+                </div>
+       </div>
+<%
+   end
+    def tpl_footer
+      %>
+    <div id="footer">
+        </Div>
+        </div>
+        </div>
+</body>
+        
+        </html>
+<%
+    end
+
+  def tpl_list_entries
+    @entries.each do |post|
+      %>
+ <div class="post">
+        
+        <div class="date">
+                 <div class="date_brick">
+                          <%=post.date.strftime("%b")%><br/>
+                          
+                          <%=post.date.strftime("%d")%>
+                          </div>
+                            <%=post.date.strftime("%a")%>
+                        </div>
+                          <div class="regular">
+                                   <h2><a href="<%=@settings[:url]%><%=post.category%>/<%=post.filename%>"><%=post.title%></a></h2>
+                                   <%=post.body%>
+                                   <div class="postfooter">Posted at <%=post.date.strftime("%I")%>:<%=post.date.strftime("%M")%> <%=post.date.strftime("%p")%> | Path: <a href="<%=@settings[:url]%><%=post.category%>"><%=post.category%></a></div>
+                                            </div>
+                                            </div>
+                                            <%
+                                        end
+                                 if @pageno > 1 then%>
+                                     <a href="<%=@settings[:url]%>/<%=@path_info.join('/')%>/<%=@pageno.to_i - 1%>">&lt;&lt;Prev</a> 
+<% end%>
+ <% if @pageno < @numpages then %>
+      <a href="<%=@settings[:url]%>/<%=@path_info.join('/')%>/<%=@pageno.to_i + 1%>">Next &gt;&gt;</a>
+                                     <% 
+                                 end
+                               end
+
+  def tpl_page
+    @entries.each do |post|
+      %>
+ <div class="post">
+        
+        
+                          <div class="regular">
+                                   <h2><a href="<%=@settings[:url]%><%=post.category%>/<%=post.filename%>"><%=post.title%></a></h2>
+                                   <%=post.body%>
+                                  
+                                            </div>
+                                            </div>
+                                            <%
+                                        end
+                                 if @pageno > 1 then%>
+                                     <a href="<%=@settings[:url]%>/<%=@path_info.join('/')%>/<%=@pageno.to_i - 1%>">&lt;&lt;Prev</a> 
+<% end%>
+ <% if @pageno < @numpages then %>
+      <a href="<%=@settings[:url]%>/<%=@path_info.join('/')%>/<%=@pageno.to_i + 1%>">Next &gt;&gt;</a>
+                                     <% 
+                                 end
+                               end
+                        
+                        def tpl_rss
+%>                          
+<?xml version="1.0"?>
+                          <rss version="2.0">
+                            <channel>
+                            <title><%=@settings[:blog_title]%></title>
+    <link><%=@settings[:url]%></link>
+    <description><%=@settings[:blog_description]%></description>
+    <pubDate><%=@entries.first.date%></pubDate>
+    <generator>RedBlosxom</generator>
+    <% @entries.each do |post| %>
+ <item>
+      <title><%= post.title %></title>
+      <link><%= @settings[:url] %><%= post.category %>/<%= post.filename %></link>
+      <description><![CDATA[<%= post.body %>]]></description>
+      <pubDate><%=post.date%></pubDate>
+      <guid><%=@settings[:url]%><%=post.category%>/<%=post.filename%></guid>
+    </item>
+<% end %>
+  </channel>
+</rss>
+   <%
+end
+
+  def css
+    %>
+<style type="text/css">
+      body {
+      margin: 0px;
+      background-color: #fff;
+      font-family: 'Lucida Grande', Helvetica, sans-serif;
+    }            
+    
+    a {
+      color: #6498cc;
+    }
+    
+    h1 {
+      width: 600px;
+      padding: 0px 100px 20px 100px;
+      margin: 50px auto 40px auto;
+      border-bottom: solid 1px #ccc;
+      text-align: center;
+      font: Bold 55px 'Trebuchet MS', Helvetica, sans-serif;
+      letter-spacing: -2px;
+      line-height: 50px;
+      position: relative;
+    }
+    
+    h1 a {
+      color: #444;
+      text-decoration: none;
+    }
+    
+    ul {
+      text-align: left;
+      list-style: none;
+    }
+    h1 img {
+      border-width: 0px;
+      position: absolute;
+      right: 0px;
+      bottom: 10px;
+      width: 43px;
+      height: 23px;
+    }
+    
+    div#content {
+    width: 500px;
+    margin: auto;
+    position: relative;
+  }
+  
+  pre {
+    overflow: auto
+  }
+  div#content div#description {
+  position: absolute;
+  right: -170px;
+  width: 160px;
+  text-align: right;
+}
+
+
+
+div.post {
+  position: relative;
+  margin-bottom: 40px;
+  padding-right: 20px;
+}
+
+div.post div.date {
+  position: absolute;
+  left: -260px;
+  text-align: right;
+  width: 230px;                
+  white-space: nowrap;
+  font: normal 34px Helvetica, sans-serif;
+  letter-spacing: -2px;
+  color: #ccc;
+  text-transform: uppercase;
+  line-height: 35px;
+}
+
+div.post div.date div.date_brick {
+  float: right;
+  height: 30px;
+  width: 45px;
+  background-color: #6498cc;
+  color: #bbd5f1;
+  font: Bold 12px Verdana, Sans-Serif;
+  text-align: center;
+  line-height: 12px;
+  margin-left: 10px;
+  padding-top: 5px;
+  letter-spacing: 0px;
+  overflow: hidden;
+}
+
+div.post img.permalink {
+  width: 14px;
+  height: 13px;
+  border-width: 0px;
+  background-color: #000;
+  display: none;
+  position: absolute;
+  right: 0px;
+  top: 0px;
+  z-index: 10;
+}
+
+div.post:hover img.permalink {
+  display: inline;
+}
+
+div.post h2 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #6498cc;
+  letter-spacing: -1px;
+  margin: 0px 0px 5px 0px;
+}
+
+div.post h2 a {
+  color: #6498cc;
+  text-decoration: none;
+}
+
+div.post div.caption {
+  font-size: 14px;
+  font-weight: bold;
+  color: #444;
+  margin-top: 10px;
+  padding: 0px 20px 0px 20px;
+}
+
+div#footer {
+  margin: 40px 0px 30px 0px;
+  text-align: center;
+  font-size
+}  
+div.postfooter { 
+  font-weight: bold; 
+}
+</style>
+<%
+  end
+end
+
+
+class Entry
+  attr_accessor :title, :body, :date, :category, :filename
+  def initialize(title,body,date,category,filename)
+    @title=title
+    @body=body
+    @date=date
+    @category=category
+    @filename=filename.gsub('.txt','.html')
+  end
+end
+
+
+class RedBlosxom
+   def tpl_header
+   %>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+        <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <title><%=@settings[:blog_title]%> </title>
+        <link rel="alternate" type="application/rss+xml" title="RSS" href="<%=@settings[:url]%>/rss.xml"/>
+        <meta name="viewport" content="width=800"/> <!-- iPhone -->
+ <link rel="pavatar" href="http://www.robsayers.com/pavatar.png" />
+         <link rel="openid.server" href="http://www.robsayers.com/MyID.config.php">
+
+           <link rel="openid.delegate" href="http://www.robsayers.com/MyID.config.php">
+
+<% css %>
+ </head>
+    <body>
+        <h1>
+            <a href="/"><%=@settings[:blog_title]%></a>
+        </h1>
+        <div id="content">
+            <div id="description">
+                <div>
+                <% sidebar %>
+
+
+<%
+end
+end
+
+
+blog=RedBlosxom.new
+blog.dispatch
+%>
