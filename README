@@ -1,0 +1,47 @@
+Stream of Consciousness - Blogging Minimilism
+Writted by Rob Sayers
+Released as Public Domain
+
+* About
+
+So why another piece of blog software?  Well,  I've been blogging 
+for years now, no software package worked exactly how I wanted.
+
+Blosxom was close,  actually pretty near perfect, and there's no good
+reason I could not have used it really.  I'm a programmer by nature
+and I love Ruby, so I decided to write my own clone in Ruby.  While it's
+been done,  various clones did not capture the spirit of Blosxom in my 
+opinion.
+
+Blosxom got a lot right in my opinion, the program was a single script, 
+and it used the filesystem as a database.  Keeping those key points in 
+mind, I wrote Stream of Consciousness.
+
+SOC currently lacks many of Blosxom's features such as static pages
+and plugins.  There is also no easy themeing system, but it is possible
+with subclassing.  Static pages are nearly working, and plugins will
+be in there eventually (when I need them)
+
+* Setup
+
+SOC requires eRuby installed, I currently run it under mod_ruby, but
+cgi should work just as well.  Use google to help you get that setup.
+
+At the beginning of the source file you will see a hash of settings 
+which are commented (options and comments copied from Blosxom).
+
+You can also pass the same hash to the Class when you initialize it.
+This is the preferred method as it prevents you from changing the 
+actual source code in the even you want to upgrade when new versions
+are released.
+
+the dispatch method gets everything rolling after it is initialized.
+
+
+* Changelog
+
+December 18 2008: Initial Committ
+
+January 8 2009: Lots of code cleaning,  allowed ability to set options 
+	  	without editing source code, new theme as well.
+
