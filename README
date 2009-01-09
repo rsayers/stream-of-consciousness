@@ -28,7 +28,13 @@ SOC requires eRuby installed, I currently run it under mod_ruby, but
 cgi should work just as well.  Use google to help you get that setup.
 
 At the beginning of the source file you will see a hash of settings 
-which are commented (options and comments copied from Blosxom).
+which are commented (options and comments copied from Blosxom). The
+important settings here are the datadir and url.  Without these it
+will not work.
+
+SOC also has support for standalone pages, define the pagedir option
+and place .txt files in this dir. Just like entries, the first line is
+the title and the rest will be the body.
 
 You can also pass the same hash to the Class when you initialize it.
 This is the preferred method as it prevents you from changing the 
@@ -37,6 +43,9 @@ are released.
 
 the dispatch method gets everything rolling after it is initialized.
 
+This is very basic software I hacked together for my own use, it is
+maturing, but as of now expect bugs, error handling is nearly non existant
+but that too is changing
 
 * Changelog
 
@@ -45,3 +54,5 @@ December 18 2008: Initial Committ
 January 8 2009: Lots of code cleaning,  allowed ability to set options 
 	  	without editing source code, new theme as well.
 
+January 9 2009:  Fixed a problem with pagination and completed static
+	  	 page support

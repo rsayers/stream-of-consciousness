@@ -41,7 +41,8 @@
           :default_flavour => "html",
           
           
-        }
+        }        
+
       else
         @settings=settings
       end    
@@ -49,6 +50,8 @@
       @entries=[]
       @categories=[]
       get_categories
+      get_pages
+
       @numpages=1
     end
         
@@ -76,9 +79,12 @@
       elsif @path_info[0]=='pages'
         @mode='page'
         get_page
-        tpl_header
-        tpl_page
-        tpl_footer
+        tpl_layout {
+          @entries.each do |e|
+            tpl_page e
+          end
+        }
+        
         
       elsif @path_info.last.match('.*\.html$') then
         @mode='view'
@@ -107,8 +113,6 @@
     def get_entry
       filename=@path_info.join('/')
       filename.gsub!('.html','.txt')
-
- 
       @entries << load_entry(filename)
     end
  
@@ -128,6 +132,19 @@
       end
       @categories.sort! 
     end  
+    
+    def get_pages
+      @pages=[]
+      if (File.exist?(@settings[:pagedir])) then  
+        Dir.chdir(@settings[:pagedir])
+        list=Dir.glob(File.join("**","*"))
+        list.each do |e|
+          @pages << {'filename'=>e,'title'=>File.open(e).readline}
+        end
+      end
+    end
+    
+
 
     def load_entry(filename)
       
@@ -164,7 +181,8 @@
       @entries.sort! { |x,y| y.date <=> x.date }
       start = (@pageno.to_i * @settings[:num_entries].to_i) - @settings[:num_entries].to_i
       start = 0 if @pageno == 1
-      @numpages=@entries.length /  @settings[:num_entries].to_i 
+ 		    
+      @numpages=(@entries.length.to_f /  @settings[:num_entries].to_f).ceil
       @entries=@entries[start,@settings[:num_entries].to_i]
     end
 
@@ -210,13 +228,23 @@
 	 <% yield %>
 	 </div>
 	  <div id="right">
-	    <p class="sectiontitle">Categories</p>
+	<% if (File.exist?(@settings[:pagedir])) then %>
+            <p class="sectiontitle">Pages</p>
+            <ul>
+              <% @pages.each do |p| %>
+                  <li><a href="<%=@settings[:pagevar]%>/<%=p['filename']%>"><%=p['title']%></a></li>
+              <% end %>
+
+            </ul>
+       <% end %>
+        <p class="sectiontitle">Categories</p>
 	    <ul>
               <% @categories.each do |c| %>
                   <li><a href="<%=@settings[:url]%><%=c%>"><%=c%></a></li>
               <% end %>
 	     
 	    </ul>
+
 	  </div>
 	  
 	</div>
@@ -291,6 +319,24 @@ end
 	  </div>
   <%
   end
+
+ def tpl_page(entry)
+    %>
+       <div class="post">
+	    <div class="postheader">
+	      <div class="title"><a href="<%=@settings[:url]%><%=entry.category%>/<%=entry.filename%>"><%=entry.title%></a></div>
+	      
+	    </div>
+	    
+	    <div class="postbody">
+	     <%=entry.body%>
+	    </div>
+	    
+	  </div>
+  <%
+  end
+
+
 end
 
 class Entry
@@ -303,7 +349,6 @@ class Entry
     @filename=filename.gsub('.txt','.html')
   end
 end
-
 
 blog=StreamOfConsciousness.new
 blog.dispatch
