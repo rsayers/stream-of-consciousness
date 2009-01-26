@@ -1,14 +1,23 @@
 <%
-  class StreamOfConsciousness
+    class StreamOfConsciousness
     
-    attr_accessor :settings
+    attr_accessor :settings, :sideitems
 
-    def initialize(settings='')
+    def initialize
       require 'cgi'
       require 'ftools'
-
-      if (settings=='') then
-        settings = {
+      require 'erb'
+      
+      settings={}
+      @pageno=1
+      @entries=[]
+      @categories=[]
+      @sideitems=[]
+      @plugins=[]
+      eval(File.read('blog.conf.rb')) if File.exists?('blog.conf.rb')
+      
+      if (settings.nil?) then
+        @settings = {
           
           :blog_title => "Blog Title",
           
@@ -20,8 +29,7 @@
           
           # Where are this blog's entries kept?
           :datadir => "/home/username/blogdata",
-          
-          
+                    
           #What directory will static pages be served from?
           
           :pagedir => "/home/username/pagedata",
@@ -38,23 +46,49 @@
           :file_extension => "txt",
           
           # What is the default flavour?
-          :default_flavour => "html",
-          
+          :default_flavour => "html",      
+
+          :plugindir => "/home/username/plugins"
           
         }        
 
       else
         @settings=settings
       end    
-      @pageno=1
-      @entries=[]
-      @categories=[]
+      
+      load_plugins
       get_categories
       get_pages
-
       @numpages=1
+
+
+      # Default Side items,  page and category lists
+
+      if (File.exist?(@settings[:pagedir])) then 
+            
+            @sideitems << {'title'=>'Pages','content'=>lambda{
+            puts '<ul>'
+            @pages.each do |p|
+              puts "\t<li><a href=\"#{@settings[:pagevar]}/#{p['filename']}\">#{p['title']}</a></li>"
+            end 
+
+            puts '</ul>'
+          }} 
+       end
+
+      @sideitems << {'title'=>'Categories','content'=>lambda{
+          puts '<ul>'
+          @categories.each do |c|
+            puts  "<li><a href=\"#{@settings[:url]}#{c}\">#{c}</a></li>"
+          end           
+          puts '</ul>'}}
+
+      do_hook('sideitems')
     end
-        
+    
+
+   
+
     def dispatch
       cgi=CGI.new
       @mode=''
@@ -102,6 +136,7 @@
         @path_info.pop
 
         tpl_layout { 
+       
           @entries.each do |e|
             tpl_entry e
           end
@@ -110,6 +145,29 @@
       end
     end
     
+   
+    def load_plugins
+      plugin_hook=''
+      code=lambda{}
+     return if !File.exist?(@settings[:plugindir])
+     Dir.chdir(@settings[:plugindir])
+      list=Dir.glob(File.join("**","*.rb"))
+      list.each do |f|
+        eval(File.read(@settings[:plugindir]+'/'+f))
+        @plugins << { :hook => plugin_hook, :code => code }
+      end
+      
+    end
+
+    def do_hook(hook)
+      @plugins.each do |p|
+        
+        if p[:hook]==hook then
+          p[:code].call
+        end
+      end
+    end
+
     def get_entry
       filename=@path_info.join('/')
       filename.gsub!('.html','.txt')
@@ -144,8 +202,6 @@
       end
     end
     
-
-
     def load_entry(filename)
       
         File.open(filename) do |f|
@@ -184,16 +240,62 @@
  		    
       @numpages=(@entries.length.to_f /  @settings[:num_entries].to_f).ceil
       @entries=@entries[start,@settings[:num_entries].to_i]
+      do_hook('before_post');
     end
 
-    def tpl_layout
+
+    def tpl_header
 %>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
 
 <html>
   <head>
-    <title><%=@settings[:blog_title]%></title>
-    <style>
-      * { font-family: Helvetica; }
+   <meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+
+   <title><%=@settings[:blog_title]%></title>
+    <style  type="text/css">
+      <% tpl_css %>
+    </style>
+
+    <% do_hook('html_head') %>
+  </head>
+  <body>
+   
+      <div id="header">
+	<span id="blogtitle"><%=@settings[:blog_title]%></span>
+	<span id="blogsubtitle"><%=@settings[:blog_description]%></span>
+      </div>
+      <div id="content">
+<%
+    end
+
+    def tpl_footer
+%>
+      </div>
+      <div id="footer">
+	<a href="http://github.com/rsayers/stream-of-consciousness">Stream of Consciousness</a> - Blogging Minimilism<br>
+	Code and content are Public Domain
+      </div>
+      
+  </body>
+</html>
+<%
+    end
+
+    def tpl_sidebar
+
+	  unless @sideitems.nil? %>
+	     <% @sideitems.each do |item| %>
+	         <p class="sectiontitle"><%=item['title']%><p>
+	         <% item['content'].call %>
+             <% end %>
+        <% end 
+    end
+
+    def tpl_css
+%>
+* { font-family: Helvetica; }
       a { text-decoration: none; border-bottom: 1px dashed #929292;color:#929292; }
       body { padding-left: 10px; }
       #header { margin-bottom: 10px; width: 800px; border-top:5px solid black; background-color: #eeeeee}
@@ -213,52 +315,28 @@
       .postfooter { text-align: center; margin-bottom:20px;font-weight:bold }
       #footer { text-align: center; width:800px; background-color:#eeeeee;border-bottom:5px solid black}
       #nav { text-align: center; margin-bottom:10px; }
-    </style>
-  </head>
-  <body>
-   
-      
-      <div id="header">
-	<span id="blogtitle"><%=@settings[:blog_title]%></span>
-	<span id="blogsubtitle"><%=@settings[:blog_description]%></span>
-      </div>
-      <div id="content">
+<%
+    end
+
+    def tpl_layout
+
+      tpl_header
+%>
+
+
 	<div id="left">
 	  
 	 <% yield %>
 	 </div>
 	  <div id="right">
-	<% if (File.exist?(@settings[:pagedir])) then %>
-            <p class="sectiontitle">Pages</p>
-            <ul>
-              <% @pages.each do |p| %>
-                  <li><a href="<%=@settings[:pagevar]%>/<%=p['filename']%>"><%=p['title']%></a></li>
-              <% end %>
-
-            </ul>
-       <% end %>
-        <p class="sectiontitle">Categories</p>
-	    <ul>
-              <% @categories.each do |c| %>
-                  <li><a href="<%=@settings[:url]%><%=c%>"><%=c%></a></li>
-              <% end %>
-	     
-	    </ul>
-
+        
+        <% tpl_sidebar %>
 	  </div>
 	  
-	</div>
-      </div>
-      <div id="footer">
-	<a href="http://github.com/rsayers/stream-of-consciousness">Stream of Consciousness</a> - Blogging Minimilism<br>
-	Code and content are Public Domain
-      </div>
-      
-  </body>
-</html>
 
 
     <%
+tpl_footer
 end
     
 def tpl_navigation
@@ -335,8 +413,6 @@ end
 	  </div>
   <%
   end
-
-
 end
 
 class Entry
@@ -349,6 +425,9 @@ class Entry
     @filename=filename.gsub('.txt','.html')
   end
 end
+
+settings={}
+
 
 blog=StreamOfConsciousness.new
 blog.dispatch
