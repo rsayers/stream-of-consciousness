@@ -195,7 +195,7 @@
       @pages=[]
       if (File.exist?(@settings[:pagedir])) then  
         Dir.chdir(@settings[:pagedir])
-        list=Dir.glob(File.join("**","*"))
+        list=Dir.glob(File.join("**","*.txt"))
         list.each do |e|
           @pages << {'filename'=>e,'title'=>File.open(e).readline}
         end
@@ -402,7 +402,7 @@ end
     %>
        <div class="post">
 	    <div class="postheader">
-	      <div class="title"><a href="<%=@settings[:url]%><%=entry.category%>/<%=entry.filename%>"><%=entry.title%></a></div>
+	      <div class="title"><a href="<%=@settings[:url]%>/<%=@settings[:pagevar]%>/<%=entry.filename%>"><%=entry.title%></a></div>
 	      
 	    </div>
 	    
