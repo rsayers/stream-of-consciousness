@@ -69,7 +69,7 @@
             @sideitems << {'title'=>'Pages','content'=>lambda{
             puts '<ul>'
             @pages.each do |p|
-              puts "\t<li><a href=\"#{@settings[:pagevar]}/#{p['filename']}\">#{p['title']}</a></li>"
+              puts "\t<li><a href=\"/#{@settings[:pagevar]}/#{p['filename']}\">#{p['title']}</a></li>"
             end 
 
             puts '</ul>'
@@ -94,16 +94,18 @@
       @mode=''
       @path_info=[]
       @path_info=cgi.path_info.to_s.split('/')
+    
       @path_info.shift
+      
       @path_info << '/' if @path_info.last.nil? 
-      if @path_info.last.match(/\d+/)
+      if @path_info.last.match(/\d+$/)
         @pageno=@path_info.pop.to_i
 
       end
-      
+
       @path_info << '/' if @path_info.last.nil?
      
-    
+
       if @path_info.last.match('.*\.xml$') then 
         @mode='xml'
         cgi.header('Content-type: text/xml')
@@ -126,6 +128,7 @@
         tpl_layout { 
           @entries.each do |e|
             tpl_entry e
+            do_hook("after_single_entry")
           end
          
         }
@@ -171,7 +174,7 @@
     def get_entry
       filename=@path_info.join('/')
       filename.gsub!('.html','.txt')
-      @entries << load_entry(filename)
+      @entries << load_entry(@settings[:datadir]+'/'+filename)
     end
  
    def get_page
@@ -197,7 +200,7 @@
         Dir.chdir(@settings[:pagedir])
         list=Dir.glob(File.join("**","*.txt"))
         list.each do |e|
-          @pages << {'filename'=>e,'title'=>File.open(e).readline}
+          @pages << {'filename'=>e.gsub('.txt','.html'),'title'=>File.open(e).readline}
         end
       end
     end
@@ -315,6 +318,8 @@
       .postfooter { text-align: center; margin-bottom:20px;font-weight:bold }
       #footer { text-align: center; width:800px; background-color:#eeeeee;border-bottom:5px solid black}
       #nav { text-align: center; margin-bottom:10px; }
+      pre,code {width:500px;overflow:auto; font-family:courier; font-size:11pt;letter-spacing:0px; background-color:#eeeeee}
+      hr { display:none}
 <%
     end
 
@@ -394,6 +399,7 @@ end
 	    <div class="postfooter">
 	      Posted in <a href="<%=@settings[:url]%><%=entry.category%>"><%=entry.category%></a>
 	    </div>
+	    <hr>
 	  </div>
   <%
   end
