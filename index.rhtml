@@ -48,17 +48,21 @@
           # What is the default flavour?
           :default_flavour => "html",      
 
-          :plugindir => "/home/username/plugins"
+          :plugindir => "/home/username/plugins",
+
+          :themedir =>  "/home/username/theme"
           
         }        
 
       else
         @settings=settings
       end    
-      
+
       load_plugins
+            #load_template      
       get_categories
       get_pages
+
       @numpages=1
 
 
@@ -87,8 +91,8 @@
     end
     
 
-   
-
+    
+    
     def dispatch
       cgi=CGI.new
       @mode=''
@@ -124,27 +128,40 @@
         
       elsif @path_info.last.match('.*\.html$') then
         @mode='view'
-        get_entry
-        tpl_layout { 
-          @entries.each do |e|
-            tpl_entry e
-            do_hook("after_single_entry")
+        filename=@path_info.join('/')
+        filename.gsub!('.html','.txt')
+        if File.exist?(@settings[:datadir]+'/'+filename) then
+          get_entry(filename)
+          tpl_layout { 
+            @entries.each do |e|
+              tpl_entry e
+              do_hook("after_single_entry")
           end
-         
-        }
+            
+          }
+        else
+          error "Error: the requested entry was not found"
+        end
         
       else
         @mode='list'
-        get_entries @path_info.join('/') 
-        @path_info.pop
+        
 
-        tpl_layout { 
-       
-          @entries.each do |e|
-            tpl_entry e
-          end
-          tpl_navigation
-        }
+        if File.exist?( @settings[:datadir]+'/'+@path_info.join('/') ) then
+          get_entries @path_info.join('/')   
+          @path_info.pop
+          tpl_layout { 
+            
+            @entries.each do |e|
+              tpl_entry e
+            end
+            tpl_navigation
+          }
+        else
+
+            error "Error: the specified entry was not found"
+
+        end
       end
     end
     
@@ -171,9 +188,8 @@
       end
     end
 
-    def get_entry
-      filename=@path_info.join('/')
-      filename.gsub!('.html','.txt')
+    def get_entry(filename)
+
       @entries << load_entry(@settings[:datadir]+'/'+filename)
     end
  
@@ -205,7 +221,15 @@
       end
     end
     
+
+    def error(msg)
+      tpl_layout {
+        puts msg
+      }
+    end
+
     def load_entry(filename)
+      
       
         File.open(filename) do |f|
           title=f.readline
@@ -216,14 +240,19 @@
          tmp,filename=File.split(filename)
           Entry.new(title,body,date,category,filename)
         end
-      
+            
     end
 
+
     def get_cat_from_file(filename)
-      fullpath=File.expand_path(filename)
-      tmp,category=fullpath.split(@settings[:datadir])
-      category,file=File.split(category)
-      category
+
+
+        fullpath=File.expand_path(filename)
+
+        tmp,category=fullpath.split(@settings[:datadir])
+        category,file=File.split(category)
+        category
+
     end
 
 
@@ -255,6 +284,7 @@
 <html>
   <head>
    <meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+  <link rel="alternate" type="application/rss+xml" title="Recent (RSS)" href="/rss.xml" />
 
    <title><%=@settings[:blog_title]%></title>
     <style  type="text/css">
