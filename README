@@ -2,40 +2,21 @@ Stream of Consciousness - Blogging Minimilism
 Writted by Rob Sayers
 Released as Public Domain
 
-* About
+=About=
 
-So why another piece of blog software?  Well,  I've been blogging 
-for years now, no software package worked exactly how I wanted.
+Stream of Consciousness is a complete system for managing a blog and/or personal website.  It's inspiration comes from Blosxom, and I have tried to stay true to the spirit of that excellent software.  Stream of Conscioussness is filesystem based (in fact, can be used as a drop-in replacement for a blosxom blog), and can run your entire site with just 1 file.  
 
-Blosxom was close,  actually pretty near perfect, and there's no good
-reason I could not have used it really.  I'm a programmer by nature
-and I love Ruby, so I decided to write my own clone in Ruby.  While it's
-been done,  various clones did not capture the spirit of Blosxom in my 
-opinion.
+=Key features=
 
-Blosxom got a lot right in my opinion, the program was a single script, 
-and it used the filesystem as a database.  Keeping those key points in 
-mind, I wrote Stream of Consciousness.
+*  Blogging - Its main purpose.  Makes it simple to maintain a blog.  Filesystem based storage lets you edit your posts in whatever editor you want.  Your categories are subdirectories, so you have the ability to create new ones on the fly.
 
-SOC currently lacks many of Blosxom's features such as static pages
-and plugins.  There is also no easy themeing system, but it is possible
-with subclassing.  Static pages are nearly working, and plugins will
-be in there eventually (when I need them)
+* Static content pages - Perfect for an "About me" page or anything else you might want to post
 
-* Setup
+* Robust plugin support - You can create plugins to change nearly anything with ease
 
-Refer to wiki:
-http://wiki.github.com/rsayers/stream-of-consciousness
+* Simple template support - Create a new theme with just a few tags
 
-* Changelog
+* Simplicity - Instead of an enourmous CMS just to write a blog,  Stream of Consciousness is a simple ~400 line Ruby script which can run on nearly any platform with ease.
 
-December 18 2008: Initial Committ
 
-January 8 2009: Lots of code cleaning,  allowed ability to set options 
-	  	without editing source code, new theme as well.
-
-January 9 2009:  Fixed a problem with pagination and completed static
-	  	 page support
-
-January 26 2009: Version 1 Alpha 1! Plugin support added, mode code
-                 cleanup and fixes
+For documentation, please refer to the wiki: http://wiki.github.com/rsayers/stream-of-consciousness
