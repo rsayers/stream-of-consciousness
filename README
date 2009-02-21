@@ -2,6 +2,8 @@ Stream of Consciousness - Blogging Minimilism
 Writted by Rob Sayers
 Released as Public Domain
 
+Current version 1.0 Beta 1
+
 =About=
 
 Stream of Consciousness is a complete system for managing a blog and/or personal website.  It's inspiration comes from Blosxom, and I have tried to stay true to the spirit of that excellent software.  Stream of Conscioussness is filesystem based (in fact, can be used as a drop-in replacement for a blosxom blog), and can run your entire site with just 1 file.  

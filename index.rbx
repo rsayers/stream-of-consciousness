@@ -1,4 +1,7 @@
 # -*- mode: ruby; -*-
+# Stream of Conciousness v.1.0beta1
+# rsayers@robsayers.com
+
 class StreamOfConsciousness
   
   attr_accessor :settings, :sideitems
@@ -15,6 +18,18 @@ class StreamOfConsciousness
     @sideitems=[]
     @plugins=[]
     @templates={}
+
+    cgi=CGI.new
+    cgi.header
+    @mode=''
+    @path_info=[]
+    @path_info=cgi.path_info.to_s.split('/')
+    @path_info.shift
+    @path_info << '/' if @path_info.last.nil? 
+    if @path_info.last.match(/\d+$/)
+      @pageno=@path_info.pop.to_i
+    end
+    @path_info << '/' if @path_info.last.nil?    
     
     eval(File.read('blog.conf.rb')) if File.exists?('blog.conf.rb')
     
@@ -114,15 +129,7 @@ class StreamOfConsciousness
 <% end %>
   </channel>
 </rss>)
-    @templates[:layout]=%( 
-<%=template :header%>
-	<div id="left">
-	 <%=@block.call%>
-	 </div>
-	  <div id="right">
-        <%=template :sidebar %>
-	  </div>
-	<%=template :footer%>)
+
     @templates[:layout]=%(
 <%=template :header%>
 <div id="left">
@@ -217,17 +224,7 @@ class StreamOfConsciousness
   end
   
   def dispatch
-    cgi=CGI.new
-    cgi.header
-    @mode=''
-    @path_info=[]
-    @path_info=cgi.path_info.to_s.split('/')
-    @path_info.shift
-    @path_info << '/' if @path_info.last.nil? 
-    if @path_info.last.match(/\d+$/)
-      @pageno=@path_info.pop.to_i
-    end
-    @path_info << '/' if @path_info.last.nil?
+    
     output=''
     if @path_info.last.match('.*\.xml$') then 
       @mode='xml'
@@ -386,7 +383,7 @@ class StreamOfConsciousness
     start = 0 if @pageno == 1
     @numpages=(@entries.length.to_f /  @settings[:num_entries].to_f).ceil
     @entries=@entries[start,@settings[:num_entries].to_i]
-    do_hook('before_post');
+    do_hook('load_entries');
   end
 end
 
