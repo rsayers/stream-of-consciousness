@@ -19,11 +19,11 @@ class StreamOfConsciousness
     @plugins=[]
     @templates={}
 
-    cgi=CGI.new
-    cgi.header
+    @cgi=CGI.new
+    @cgi.header
     @mode=''
     @path_info=[]
-    @path_info=cgi.path_info.to_s.split('/')
+    @path_info=@cgi.path_info.to_s.split('/')
     @path_info.shift
     @path_info << '/' if @path_info.last.nil? 
     if @path_info.last.match(/\d+$/)
@@ -80,7 +80,7 @@ class StreamOfConsciousness
 
 <html>
   <head>
-   <meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <link rel="alternate" type="application/rss+xml" title="Recent (RSS)" href="/rss.xml" />
 
    <title><%=@settings[:blog_title]%></title>
@@ -205,7 +205,7 @@ class StreamOfConsciousness
       @sideitems << {'title'=>'Pages','content'=>lambda{
           r='<ul>'
           @pages.each do |p|
-            r+= "\t<li><a href=\"/#{@settings[:pagevar]}/#{p['filename']}\">#{p['title']}</a></li>"
+            r+= "\t<li><a href=\"#{@settings[:url]}/#{@settings[:pagevar]}/#{p['filename']}\">#{p['title']}</a></li>"
           end 
           r+='</ul>'
           return r
@@ -228,7 +228,7 @@ class StreamOfConsciousness
     output=''
     if @path_info.last.match('.*\.xml$') then 
       @mode='xml'
-      cgi.header('Content-type: text/xml')
+      @cgi.header('Content-type: text/xml')
       @path_info.pop
       get_entries @path_info.join('/')
       puts template :rss
@@ -338,7 +338,7 @@ class StreamOfConsciousness
       Dir.chdir(@settings[:pagedir])
       list=Dir.glob(File.join("**","*.txt"))
       list.each do |e|
-        @pages << {'filename'=>e.gsub('.txt','.html'),'title'=>File.open(e).readline}
+        @pages << {'filename'=>e.gsub('.txt','.html'),'title'=>File.open(e,"r:utf-8").readline}
       end
     end
   end
@@ -350,7 +350,7 @@ class StreamOfConsciousness
   end
   
   def load_entry(filename)
-    File.open(filename,"r:iso-8859-1:utf-8") do |f|
+    File.open(filename,"r:utf-8") do |f|
       title=f.readline
       body=f.read.gsub("\r","").gsub("\n","<br>")
       date=f.mtime
@@ -398,6 +398,12 @@ class Entry
   end
 end
 
-settings={}
-blog=StreamOfConsciousness.new
-blog.dispatch
+
+
+if $0 == __FILE__
+  settings={}
+  blog=StreamOfConsciousness.new
+  blog.dispatch
+end
+
+
