@@ -1,5 +1,5 @@
 # -*- mode: ruby; -*-
-# Stream of Conciousness v.1.0beta1
+# Stream of Conciousness v.1.0RC1
 # rsayers@robsayers.com
 
 class StreamOfConsciousness
@@ -142,9 +142,9 @@ class StreamOfConsciousness
 )
     @templates[:navigation]=%(<div id="nav">
 <%if @pageno > 1 then%>    
-         <a href="<%= [@settings[:url], @path_info.to_s ,@pageno.to_i - 1].join('/')%>">&lt;&lt;Prev</a> 
+         <a href="<%=navlink(-1)%>">&lt;&lt;Prev</a> 
 <%end;if @pageno < @numpages then %>
-      <a href="<%=[@settings[:url], @path_info.to_s ,@pageno.to_i + 1].join('/')%>">Next &gt;&gt;</a>
+      <a href="<%=navlink(+1)%>">Next &gt;&gt;</a>
 <%end%>
 </div>)
        
@@ -239,10 +239,14 @@ class StreamOfConsciousness
         @entry=@entries.first
         template(:page)  
       }
-    elsif @path_info.last.match('.*\.html$') then
+    elsif @path_info.last.match('.*\.html$')  then
       @mode='view'
       filename=@path_info.join('/')
-      filename.gsub!('.html','.txt')
+      filename.gsub!('.html','.draft')
+      if !File.exist?(@settings[:datadir]+'/'+filename) then
+        filename.gsub!('.draft','.txt')
+      end
+   
       if File.exist?(@settings[:datadir]+'/'+filename) then
         get_entry(filename)
         output=''
@@ -384,6 +388,15 @@ class StreamOfConsciousness
     @numpages=(@entries.length.to_f /  @settings[:num_entries].to_f).ceil
     @entries=@entries[start,@settings[:num_entries].to_i]
     do_hook('load_entries');
+  end
+
+
+  def navlink(p)
+    link = []
+    link << @settings[:url].gsub(/\/$/,'')
+    link << @path_info.to_s if @path_info.to_s != "/"
+    link << @pageno.to_i + p
+    link.join('/')
   end
 end
 
