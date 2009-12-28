@@ -1,3 +1,4 @@
+#!/usr/local/bin/ruby
 # -*- mode: ruby; -*-
 # Stream of Conciousness v.1.0RC1
 # rsayers@robsayers.com
@@ -18,12 +19,21 @@ class StreamOfConsciousness
     @sideitems=[]
     @plugins=[]
     @templates={}
-
+    @script_path = ENV['SCRIPT_FILENAME'].split('/')
+    @script_path.pop
+    @script_path = @script_path.join('/')
+    @conf_file = @script_path + '/blog.conf.rb'
     @cgi=CGI.new
-    @cgi.header
+    
+    puts @cgi.header unless ENV['SERVER_SOFTWARE'] =~ /HTTPi/
     @mode=''
     @path_info=[]
-    @path_info=@cgi.path_info.to_s.split('/')
+    if ENV['SERVER_SOFTWARE'] =~ /HTTPi/ then
+       @path_info=ENV['SCRIPT_NAME'].split('/')
+       @path_info.shift
+    else
+       @path_info=@cgi.path_info.to_s.split('/')
+    end
     @path_info.shift
     @path_info << '/' if @path_info.last.nil? 
     if @path_info.last.match(/\d+$/)
@@ -31,9 +41,10 @@ class StreamOfConsciousness
     end
     @path_info << '/' if @path_info.last.nil?    
     
-    eval(File.read('blog.conf.rb')) if File.exists?('blog.conf.rb')
-    
+    eval(File.read(@conf_file)) if File.exist?(@conf_file) 
+   
     if (settings.nil?) then
+    
       @settings = {
         
         :blog_title => "Blog Title",
@@ -118,8 +129,9 @@ class StreamOfConsciousness
     <description><%=@settings[:blog_description]%></description>
     <pubDate><%=@entries.first.date%></pubDate>
     <generator>Stream of Consciousness</generator>
-    <% @entries.each do |post| %>
- <item>
+
+<% @entries.each do |post| %>
+<item>
       <title><%= post.title %></title>
       <link><%= @settings[:url] %><%= post.category %>/<%= post.filename %></link>
       <description><![CDATA[<%= post.body %>]]></description>
@@ -127,6 +139,7 @@ class StreamOfConsciousness
       <guid><%=@settings[:url]%><%=post.category%>/<%=post.filename%></guid>
     </item>
 <% end %>
+
   </channel>
 </rss>)
 
@@ -173,17 +186,17 @@ class StreamOfConsciousness
     @templates[:css]=%(
       * { font-family: Helvetica; }
       a { text-decoration: none; border-bottom: 1px dashed #929292;color:#929292; }
-      body { padding-left: 10px; }
-      #header { margin-bottom: 10px; width: 800px; border-top:5px solid black; background-color: #eeeeee}
+      body { padding-left: 10px;  }
+      #header { margin-bottom: 10px; width: 800px; border-top:5px solid black; background-color: #eeeeee; margin-left: auto; margin-right: auto; text-align:center}
       #left { width: 600px; float:left;}
-      #content { width: 800px;}
+      #content { background-color: #FFFFFF; width: 800px; margin-left: auto; margin-right: auto;}
       #right {float:right;text-align:center }
       #right ul { list-style: none; }
       #right ul li { background-color: #eeeeee;width:170px;margin-left:-50px; border-bottom:1px solid black;text-align:left; border-left:2px solid black; padding-left: 10px }
       #right ul li a { color: black; text-decoration:none; border-bottom: 0}
       .postbody { text-align: justify;font-size:11pt; font-family: times; letter-spacing: 1px; margin-bottom:10px;  }
-      #footer { clear: both; }
-      #blogtitle { font-size: 18pt; font-weight:bold; }
+      #footer { clear: both; margin-left: auto; margin-right: auto;}
+      #blogtitle { font-size: 24pt; font-weight:bold; }
       #blogsubtitle { clear:both; display:block; font-family:Times; font-style: italic}
       .title { font-weight: bold; float:left;}
       .date {float: right; color: #929292}
@@ -228,7 +241,7 @@ class StreamOfConsciousness
     output=''
     if @path_info.last.match('.*\.xml$') then 
       @mode='xml'
-      @cgi.header('Content-type: text/xml')
+
       @path_info.pop
       get_entries @path_info.join('/')
       puts template :rss
@@ -354,9 +367,15 @@ class StreamOfConsciousness
   end
   
   def load_entry(filename)
+  require 'iconv'
+     ic_ignore = Iconv.new('US-ASCII//IGNORE', 'UTF-8')
+
+
     File.open(filename,"r:utf-8") do |f|
       title=f.readline
-      body=f.read.gsub("\r","").gsub("\n","<br>")
+      
+      body=ic_ignore.iconv(f.read).gsub("\r","").gsub("\n","<br />")
+
       date=f.mtime
       category="page"
       category=get_cat_from_file(filename) if @mode != "page" 
@@ -390,11 +409,18 @@ class StreamOfConsciousness
     do_hook('load_entries');
   end
 
+  def entrylink(entry)
+    link = []
+    link << @settings[:url].gsub(/\/$/,'')
+    link << entry.category.gsub(/^\//,'').gsub(/\/$/,'')
+    link << entry.filename
+    link.join('/')
+  end
 
   def navlink(p)
     link = []
     link << @settings[:url].gsub(/\/$/,'')
-    link << @path_info.to_s if @path_info.to_s != "/"
+    link << @path_info.join('/') if @path_info[0]!="/"
     link << @pageno.to_i + p
     link.join('/')
   end
@@ -414,7 +440,6 @@ end
 
 
 if $0 == __FILE__
-  settings={}
   blog=StreamOfConsciousness.new
   blog.dispatch
 end
