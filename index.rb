@@ -1,20 +1,22 @@
 #!/usr/local/bin/ruby
 # -*- mode: ruby; -*-
+settings = {
+      :blog_title => "Blog Title", 
+      :blog_description => "A Stream of Consciousness Blog", 
+      :blog_language => "en",
+      :datadir => "/path/to/blogdata",
+      :pagedir => "/path/to/pagedata", 
+      :pagevar => "pages", 
+      :file_extension => 'txt',
+      :url => "http://www.mysite.com/",
+      :num_entries => 10,     
+      :plugindir => "/path/to/plugins",
+      :themedir =>  "/path/to/theme",
+      :rewrite_links=>false
+    }        
+
 class StreamOfConsciousness
-  @settings = {
-    :blog_title => "Blog Title", 
-    :blog_description => "A Stream of Consciousness Blog", 
-    :blog_language => "en",
-    :datadir => "/home/username/blogdata",
-    :pagedir => "/home/username/pagedata", 
-    :pagevar => "pages",   
-    :url => "http://www.mysite.com",
-    :num_entries => 10,     
-    :plugindir => "/home/username/plugins",
-    :themedir =>  "/home/username/theme",
-    :rewrite_links=>false
-  }        
-  attr_accessor :settings, :widgets
+  attr_accessor :settings, :widgets, :entries
   def include_libs
     require 'cgi'
     require 'ftools' if RUBY_VERSION.to_f < 1.9
@@ -22,7 +24,8 @@ class StreamOfConsciousness
     require 'iconv'
   end
 
-  def initialize
+  def initialize(settings=nil)
+    @settings = settings
     include_libs
     init_env
     read_config
@@ -32,6 +35,7 @@ class StreamOfConsciousness
     get_categories
     get_pages
     load_widgets
+    self
   end
 
   def init_array (*vars)
@@ -47,16 +51,17 @@ class StreamOfConsciousness
     @templates,@outputs={},{}
     @script_path = File.dirname(__FILE__)
     @conf_file = @script_path + '/blog.conf.rb'
-    if ENV['SERVER_SOFTWARE'] =~ /HTTPi/ then
-      tmp_path=ENV['SCRIPT_NAME'].split(File.basename(__FILE__))
+    @open_mode = RUBY_VERSION.to_f < 1.9 ? "r" : "r:utf-8"
+    if !ENV['PATH_INFO'] then
+      tmp_path=(ENV['SCRIPT_NAME'] || '').split(File.basename(__FILE__))
       ENV['PATH_INFO']='/'
       if (tmp_path.size > 1) then
         ENV['PATH_INFO']=tmp_path.last
       end
     end
     @cgi=CGI.new 
-    @path_info=@cgi.path_info.dup
     puts @cgi.header unless @cgi.server_software =~ /HTTPi/
+    @path_info=@cgi.path_info.dup
     if @path_info.match(/\/(\d+)$/)
       @pageno=$1.to_i
       @path_info.gsub!(/(\d+)$/,'')
@@ -64,7 +69,7 @@ class StreamOfConsciousness
   end
   
   def init_outputs
-    add_output :xml, /\.xml$/ do
+    add_output :xml, /\.xml/ do
       get_entries File.dirname(@path_info)
       template :rss
     end
@@ -113,7 +118,6 @@ class StreamOfConsciousness
     end
   end
 
-
   def load_widgets
     if (File.exist?(@settings[:pagedir])) then   
       widget 'Pages' do
@@ -138,11 +142,10 @@ class StreamOfConsciousness
   end
 
   def dispatch
-    @outputs.each_key do |k|
-      if @path_info =~ @outputs[k][:rule] then
+    @outputs.each_pair do |k,v|
+      if @path_info =~ v[:rule] then
         @output_mode = k
-        puts @outputs[k][:method].call
-        break
+        puts v[:method].call
       end
     end
   end
@@ -153,19 +156,13 @@ class StreamOfConsciousness
     list=Dir.glob(File.join("**","*.rb"))
     list.each do |f|
       eval(File.read(@settings[:plugindir]+'/'+f))
-     end      
+    end      
   end
 
-  def widget (name,&block)
-     @widgets << { :title=>name, :content=>block }
-  end
-
-  def plugin (hook,&block)
-     @plugins << { :hook => hook, :code => block }
-  end
+  def widget (name,&block); @widgets << { :title=>name, :content=>block };end
+  def plugin (hook,&block); @plugins << { :hook => hook, :code => block }; end
   
   def load_templates
-    # load the embedded templates first
     if DATA
       template=nil
       DATA.each_line do |line|
@@ -177,8 +174,6 @@ class StreamOfConsciousness
         end
       end
     end
-
-    # load user defined tempaltes next
     return if !File.exist?(@settings[:themedir])
     Dir.chdir(@settings[:themedir])
     list=Dir.glob(File.join("**","*.rhtml"))
@@ -189,8 +184,7 @@ class StreamOfConsciousness
   end
   
   def template(name,&block)
-    tpl=ERB.new(@templates[name])
-    tpl.result(binding)
+    tpl=ERB.new(@templates[name]).result(binding)
   end
   
   def do_hook(hook)
@@ -223,7 +217,7 @@ class StreamOfConsciousness
       Dir.chdir(@settings[:pagedir])
       list=Dir.glob(File.join("**","*.txt"))
       list.each do |e|
-        @pages << {'filename'=>e.gsub('.txt','.html'),'title'=>File.open(e,"r:utf-8").readline}
+        @pages << {'filename'=>e.gsub('.txt','.html'),'title'=>File.open(e,@open_mode).readline}
       end
     end
   end
@@ -234,13 +228,11 @@ class StreamOfConsciousness
   
   def load_entry(filename)
     ic_ignore = Iconv.new('US-ASCII//IGNORE', 'UTF-8')
-    File.open(filename,"r:utf-8") do |f|
+    File.open(filename,@open_mode) do |f|
       title=f.readline
-
       body=ic_ignore.iconv(f.read).gsub("\r","").gsub("\n","<br />")
       date=f.mtime
       category='page'
-      
       category=get_cat_from_file(filename) if @output_mode != :page
       tmp,filename=File.split(filename)
       do_hook('load_post')
@@ -301,7 +293,7 @@ class Entry
 end
 
 if $0 == __FILE__
-  blog=StreamOfConsciousness.new
+  blog=StreamOfConsciousness.new(settings)
   blog.dispatch
 end
 __END__
@@ -317,29 +309,31 @@ __END__
     </style>
     <%=do_hook('html_head') %>
   </head>
-  <body>   
-    <div id="header">
-      <span id="blogtitle"><%=@settings[:blog_title]%></span>
-      <span id="blogsubtitle"><%=@settings[:blog_description]%></span>
-    </div>
-    <div id="content">
+  <body> 
+   <div id="rap">  
+    <div id="headwrap">
+      <div id="header"><a href="<%=@settings[:url]%>"><%=@settings[:blog_title]%></a></div>
+      <div id="desc"><a href="<%=@settings[:url]%>">&raquo; <%=@settings[:blog_description]%></a></div>
+    </div> 
       
 @@ footer
+    <div class="credit">
+      Powered By <a href="http://github.com/rsayers/stream-of-consciousness">Stream of Consciousness</a> - Theme "Barecity" by <a href="http://shaheeilyas.com/">Shahee Ilyas</a>, Ported by <a href="http://www.robsayers.com">Rob Sayers</a>
     </div>
-    <div id="footer">
-      <a href="http://github.com/rsayers/stream-of-consciousness">Stream of Consciousness</a> - Blogging Minimilism<br>
-      Code and content are Public Domain
-    </div>
+</div>
   </body>
 </html>
 
 @@ sidebar
-<%unless @widgets.nil? %>
-   <% @widgets.each do |item| %>
-      <p class="sectiontitle"><%=item[:title]%><p>
-      <%=item[:content].call %>
+<ul>
+  <%unless @widgets.nil? %>
+    <% @widgets.each do |item| %>
+      <li class="widget widget_text"><%=item[:title]%><br />			
+        <div class="textwidget"><%=item[:content].call %></div>
+     </li>
    <% end %>
 <% end %>
+</ul>
 
 @@ rss
 <?xml version="1.0"?>
@@ -364,68 +358,73 @@ __END__
 
 @@ layout
 <%=template :header%>
-<div id="left">
-  <%=block.call if block_given? %>	  
-</div>
-<div id="right">
+<div id="content">
+  <%=block.call if block_given? %>
+</div>	  
+<div id="sidebar">
   <%=template :sidebar %>
 </div>
+
 <%=template :footer%>
 
 @@ navigation
-<div id="nav">
-  <%if @pageno > 1 then%>    
-  <a href="<%=navlink(-1)%>">&lt;&lt;Prev</a> 
-  <%end;if @pageno < @numpages then %>
-	   <a href="<%=navlink(+1)%>">Next &gt;&gt;</a>
-	   <%end%>
-</div>
+  <%if @pageno > 1 then%><a href="<%=navlink(-1)%>">&lt;&lt;Prev</a> <%end%>
+  <%if @pageno < @numpages then %><a href="<%=navlink(+1)%>">Next &gt;&gt;</a><%end%>
+
 
 @@ page
 <div class="post">
-  <div class="postheader">
-    <div class="title"><a href="<%=@settings[:url]+'/'+@settings[:pagevar]+'/'+@entry.filename%>"><%=@entry.title%></a></div>      
-  </div>
-  <div class="postbody">
-    <%=@entry.body%>
-  </div>
+    <h3 class="title"><a href="<%=@settings[:url]+'/'+@settings[:pagevar]+'/'+@entry.filename%>"><%=@entry.title%></a></h3>      
+    <div class="storycontent"><%=@entry.body%></div>
 </div>
 
 @@ entry
 <div class="post">
-  <div class="postheader">
-    <div class="title"><a href='<%=entrylink(@entry)%>'><%=@entry.title%></a></div>
-    <div class="date"><%=@entry.date.strftime('%B %d %Y')%></div>
-  </div>
-  <div class="postbody">
-    <%=@entry.body%>
-  </div>
-  <div class="postfooter">
-    Posted in <a href="<%=@settings[:url]%><%=@entry.category%>"><%=@entry.category%></a>
-  </div>
-  <hr>
+  <h3 class="storytitle"><a href='<%=entrylink(@entry)%>'><%=@entry.title%></a></h3>
+  <div class="meta"><a href="<%=@settings[:url]%><%=@entry.category%>"><%=@entry.category%></a> &#8212; <%=@entry.date.strftime('%B %d %Y')%></div>
+  <div class="storycontent"><p><%=@entry.body%></p></div>
 </div>
 
 @@ css
-* { font-family: Helvetica; }
-a { text-decoration: none; border-bottom: 1px dashed #929292;color:#929292; }
-body { padding-left: 10px;  }
-#header { margin-bottom: 10px; width: 800px; border-top:5px solid black; background-color: #eeeeee; margin-left: auto; margin-right: auto; text-align:center}
-#left { width: 600px; float:left;}
-#content { background-color: #FFFFFF; width: 800px; margin-left: auto; margin-right: auto;}
-#right {float:right;text-align:center }
-#right ul { list-style: none; }
-#right ul li { background-color: #eeeeee;width:170px;margin-left:-50px; border-bottom:1px solid black;text-align:left; border-left:2px solid black; padding-left: 10px }
-#right ul li a { color: black; text-decoration:none; border-bottom: 0}
-.postbody { text-align: justify;font-size:11pt; font-family: times; letter-spacing: 1px; margin-bottom:10px;  }
-#footer { clear: both; margin-left: auto; margin-right: auto;}
-#blogtitle { font-size: 24pt; font-weight:bold; }
-#blogsubtitle { clear:both; display:block; font-family:Times; font-style: italic}
-.title { font-weight: bold; float:left;}
-.date {float: right; color: #929292}
-.postbody{border-top: 2px solid #929292; clear:both;}
-.postfooter { text-align: center; margin-bottom:20px;font-weight:bold }
-#footer { text-align: center; width:800px; background-color:#eeeeee;border-bottom:5px solid black}
-#nav { text-align: center; margin-bottom:10px; }
-pre,code {width:500px;overflow:auto; font-family:courier; font-size:11pt;letter-spacing:0px; background-color:#eeeeee}
-hr { display:none})
+a {text-decoration: none; color: #000;}
+a:active, a:visited, a:hover {text-decoration: none;color: #000;}
+a img {border: none;}
+acronym, abbr, span.caps {font-size: 11px;}
+acronym, abbr {cursor: help;border:none;}
+blockquote {border-left: 5px solid #ccc;margin-left: 18pxpadding-left: 5px;}
+body {background: #fff;color: #000;font-family:  Verdana, Arial, Helvetica, sans-serif;margin: 0;padding: 0;font-size: 12px;}
+cite {font-size: 11px;font-style: normal;color:#666;}
+h2 {font-family: Verdana, Arial, Helvetica, sans-serif;margin: 15px 0 2px 0;padding-bottom: 2px;}
+h3 {font-family: Verdana, Arial, Helvetica, sans-serif;margin-top: 0;font-size: 13px;}
+#commentlist li{margin-left:-22px;}
+p, li, .feedback {font: 11px Verdana, Arial, Helvetica, sans-serif;}
+.credit {clear:both;color: #666;font-size: 10px;padding: 50px 0 0 0;margin: 0 0 20px 0;text-align: left;}
+.credit a:link, .credit a:hover {color: #666;}
+.meta {font-size: 10px;}
+.meta, .meta a {color: #808080;font-weight: normal;letter-spacing: 0;}
+.storytitle {margin: 0;}
+.storytitle a {text-decoration: none;}
+.storycontent a {text-decoration: none;border-bottom: 1px dotted #888;}
+.storycontent a:hover {text-decoration: none;border-bottom: 1px dashed #888;}
+.storycontent {margin-bottom:-10px;}
+.post {margin-bottom:18px;}
+#content {float: left;width:600px;}
+#header {font-family: Georgia, "Times New Roman", Times, serif;font-size: 34px;color: black;font-weight: normal;}
+#headwrap {padding:12px 0 16px 0;margin:24px 0 48px 0;}
+#header a {color: black;text-decoration: none;}
+#header a:hover {text-decoration: none;}
+#sidebar {background: #fff;border-left: 1px dotted #ccc;padding: 0px 0 10px 20px;float: right;width: 144px;}
+#sidebar input#s {width: 60%;background: #eee;border: 1px solid #999;color: #000;}
+#sidebar ul {color: #ccc;list-style-type: none;margin: 0;padding-left: 3px;text-transform: lowercase;}
+#sidebar h2 {font-weight: normal;margin:0;padding:0;font-size: 12px;}
+#sidebar ul li {font-family: Verdana, Arial, Helvetica, sans-serif;margin-top: 10px;padding-bottom: 2px;}
+#sidebar ul ul {font-variant: normal;font-weight: normal;list-style-type: none;margin: 0;padding: 0;text-align: left;}
+#sidebar ul ul li {border: 0;font-family: Verdana, Arial, Helvetica, sans-serif;letter-spacing: 0;margin-top: 0;padding: 0;padding-left: 3px;}
+#sidebar ul ul li a {color: #000;text-decoration: none;}
+#sidebar ul ul li a:hover {border-bottom: 1px solid #809080;}
+#sidebar ul ul ul.children {font-size: 17px;padding-left: 4px;}
+#rap {background-color: #FFFFFF;margin-right:auto;margin-left:70px;width:800px;padding: 6px;}
+#desc {float:left;font-size: 12px;margin-top:3px;}
+#desc a:link, #desc a:visited  {display: inline;background-color: #fff;color: #666;text-decoration: none;}
+#desc a:hover {background-color: #eee;color: #666;}
+#desc a:active {background-color: #fff;}
